@@ -1,0 +1,14 @@
+{
+  "name": "alor-vectorizer",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "start-stat": "node src/main.js --trades-stat",
+    "start-vec": "node src/main.js --vectorizer"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "dotenv": "^16.0.3"
+  }
+}
