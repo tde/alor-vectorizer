@@ -20,8 +20,26 @@ let currentIndex = 0;
 // признак того, что идет сохранение в файл
 let isSaving = false;
 
-// Счетчик сообщений для логирования
-let messageCounter = 0;
+/**
+ * Проверка, находится ли текущее время в торговых часах (МСК)
+ * @returns {boolean} true если сейчас торговые часы
+ */
+function isTradingTime() {
+  // Получаем текущее время в Москве (UTC+3)
+  const now = new Date();
+  const moscowTime = new Date(now.getTime() + (3 * 60 * 60 * 1000)); // UTC+3 для Москвы
+  
+  const currentTimeMinutes = moscowTime.getHours() * 60 + moscowTime.getMinutes();
+  
+  // Проверяем каждую торговую сессию
+  for (const session of CONFIG.TRADING_SESSIONS) {
+    if (currentTimeMinutes >= session.start && currentTimeMinutes <= session.end) {
+      return true;
+    }
+  }
+  
+  return false;
+}
 
 /**
  * Основная функция дампа данных
@@ -37,6 +55,18 @@ export async function runDump() {
     console.log(`  - Инструмент: ${CONFIG.SYMBOL}`);
     console.log(`  - Интервал сохранения: ${CONFIG.FLUSH_EVERY_MS}ms`);
     console.log(`  - Папка данных: ${CONFIG.DATA_DIR}`);
+    console.log('  - Торговые часы:');
+    CONFIG.TRADING_SESSIONS.forEach((session, index) => {
+      const startTime = `${Math.floor(session.start / 60)}:${String(session.start % 60).padStart(2, '0')}`;
+      const endTime = `${Math.floor(session.end / 60)}:${String(session.end % 60).padStart(2, '0')}`;
+      console.log(`    Сессия ${index + 1}: ${startTime} - ${endTime}`);
+    });
+    
+    // Показываем текущее московское время
+    const now = new Date();
+    const moscowTime = new Date(now.getTime() + (3 * 60 * 60 * 1000));
+    console.log(`  - Текущее время (МСК): ${moscowTime.toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}`);
+    console.log(`  - Торговые часы активны: ${isTradingTime() ? 'ДА' : 'НЕТ'}`);
     
     // Создаем папку для данных, если её нет
     await ensureDataDirectory();
@@ -129,6 +159,12 @@ function saveDataToFile(datBuffer) {
  */
 function handleWebSocketMessage(message) {
   try {
+    // Проверяем торговые часы
+    if (!isTradingTime()) {
+      // Игнорируем сообщения вне торговых часов
+      return;
+    }
+
     // Обрабатываем различные типы сообщений
     if (!message.data) {
       // Логируем неизвестные типы сообщений для отладки
@@ -178,73 +214,6 @@ function swapDataBuffers() {
   } 
   else {
     throw new Error('Неизвестный индекс буфера');
-  }
-}
-
-/**
- * Обработка сообщений о сделках
- * @param {Object} message - Сообщение о сделках
- */
-function handleTradesMessage(message) {
-  if (message.data && Array.isArray(message.data)) {
-    message.data.forEach(trade => {
-      // Форматируем время сделки
-      const tradeTime = trade.time ? new Date(trade.time * 1000).toLocaleTimeString() : 'N/A';
-      
-      // Увеличиваем счетчик сообщений
-      messageCounter++;
-      
-      // Выводим сообщение каждые 100 полученных сообщений
-      if (messageCounter % 100 === 0) {
-        console.log(`[TRADE] Получено ${messageCounter} сообщений. Последняя сделка: ${trade.symbol || CONFIG.SYMBOL}: ${trade.qty} @ ${trade.price} (${tradeTime})`);
-      }
-      
-      // Добавляем в общий буфер с типом данных
-      dataBuffer.push({
-        type: 'trade',
-        data: trade,
-        timestamp: new Date().toISOString(),
-        saved: false // Помечаем как несохраненную
-      });
-    });
-  } else if (message.data && typeof message.data === 'object') {
-    // Одиночная сделка
-    const trade = message.data;
-    const tradeTime = trade.time ? new Date(trade.time * 1000).toLocaleTimeString() : 'N/A';
-    
-    // Увеличиваем счетчик сообщений
-    messageCounter++;
-    
-    // Выводим сообщение каждые 100 полученных сообщений
-    if (messageCounter % 100 === 0) {
-      console.log(`[TRADE] Получено ${messageCounter} сообщений. Последняя сделка: ${trade.symbol || CONFIG.SYMBOL}: ${trade.qty} @ ${trade.price} (${tradeTime})`);
-    }
-    
-    // Добавляем в общий буфер с типом данных
-    dataBuffer.push({
-      type: 'trade',
-      data: trade,
-      timestamp: new Date().toISOString(),
-      saved: false // Помечаем как несохраненную
-    });
-  }
-}
-
-/**
- * Обработка сообщений о стакане заявок
- * @param {Object} message - Сообщение о стакане
- */
-function handleOrderBookMessage(message) {
-  if (message.data) {
-    console.log(`[ORDERBOOK] ${CONFIG.SYMBOL}: ${message.data.bids?.length || 0} bids, ${message.data.asks?.length || 0} asks`);
-    
-    // Добавляем в общий буфер с типом данных
-    dataBuffer.push({
-      type: 'orderbook',
-      data: message.data,
-      timestamp: new Date().toISOString(),
-      saved: false // Помечаем как несохраненную
-    });
   }
 }
 

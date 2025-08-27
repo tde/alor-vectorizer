@@ -64,6 +64,19 @@ export const CONFIG = Object.freeze({
   FLUSH_EVERY_MS: Number(process.env.FLUSH_EVERY_MS || 10000),
   DATA_DIR: process.env.DATA_DIR || './data',
   MAX_FILE_SIZE_MB: Number(process.env.MAX_FILE_SIZE_MB || 100), // Максимальный размер файла в MB перед ротацией
+
+  // глубина стакана
+  DEPTH: Number(process.env.DEPTH || 30),
+
+  // частота обновления стакана
+  FREQUENCY: Number(process.env.FREQUENCY || 0),
+
+  // Расписание торгов (время в минутах от начала дня)
+  TRADING_SESSIONS: [
+    { start: 9 * 60, end: 14 * 60 },      // 9:00 - 14:00
+    { start: 14 * 60 + 5, end: 18 * 60 + 50 },  // 14:05 - 18:50
+    { start: 19 * 60 + 5, end: 23 * 60 + 50 }   // 19:05 - 23:50
+  ],
 });
 
 // Get volume binning settings for specific symbol
