@@ -41,10 +41,13 @@ export function buildTradesHistoryParams({ fromMs, toMs, limit }) {
 }
 
 export const CONFIG = Object.freeze({
+  // токеен
+  REFRESH_TOKEN: process.env.REFRESH_TOKEN,
+
   // API endpoints
   BASE_URL: process.env.BASE_URL,
   AUTH_URL: process.env.OAUTH_URL,
-  REFRESH_TOKEN: process.env.REFRESH_TOKEN,
+  WS_URL: process.env.WS_URL,
 
   // Trading instrument
   EXCHANGE: process.env.EXCHANGE,
@@ -52,12 +55,15 @@ export const CONFIG = Object.freeze({
 
   // API request settings
   PAGE_LIMIT: toInt(process.env.PAGE_LIMIT, 5000),
-  MAX_PAGES: toInt(process.env.MAX_PAGES, 200),
-  SLEEP_MS: toInt(process.env.SLEEP_MS, 150),
 
   // Working days parameters
   START_DATE: process.env.START_DATE, // Format: dd.MM.yyyy
   WORK_DAYS: toInt(process.env.WORK_DAYS, 5), // Number of working days (Mon-Fri)
+
+  // для сохранения в файл
+  FLUSH_EVERY_MS: Number(process.env.FLUSH_EVERY_MS || 10000),
+  DATA_DIR: process.env.DATA_DIR || './data',
+  MAX_FILE_SIZE_MB: Number(process.env.MAX_FILE_SIZE_MB || 100), // Максимальный размер файла в MB перед ротацией
 });
 
 // Get volume binning settings for specific symbol
