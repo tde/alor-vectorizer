@@ -6,7 +6,7 @@ import path from 'path';
 import writeFileAtomic from 'write-file-atomic';
 
 // Кол-во строк в буфере при превышении которого сохраняем в файл
-const MAX_BUFFER_SIZE = 200;
+const MAX_BUFFER_SIZE = 300;
 
 let wsClient = null;
 let isRunning = false;
@@ -80,11 +80,6 @@ async function ensureDataDirectory() {
  * Сохранение всех данных в один файл
  */
 function saveDataToFile(datBuffer) {
-//для теста
-  console.log(`dataBuffer1 length = ${dataBuffer1.length}`);
-  console.log(`dataBuffer2 length = ${dataBuffer2.length}`);
-  console.log(`datBuffer length = ${datBuffer.length}`);
-
   if (isSaving) {
     throw new Error('Сохранение в файл уже идет');
   }
@@ -118,10 +113,6 @@ function saveDataToFile(datBuffer) {
         console.log(`[💾] Сохранено ${datBuffer.length} записей в ${fileName}, время сохранения: ${new Date().getTime() - startSavingTime}ms`);
       }
       datBuffer.length = 0;
-
-      console.log(`dataBuffer1 length = ${dataBuffer1.length}`);
-      console.log(`dataBuffer2 length = ${dataBuffer2.length}`);
-      console.log(`datBuffer length = ${datBuffer.length}`);
 
       isSaving = false;
     });
