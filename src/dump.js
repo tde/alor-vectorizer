@@ -6,7 +6,7 @@ import path from 'path';
 import writeFileAtomic from 'write-file-atomic';
 
 // Кол-во строк в буфере при превышении которого сохраняем в файл
-const MAX_BUFFER_SIZE = 300;
+const MAX_BUFFER_SIZE = 500;
 
 let wsClient = null;
 let isRunning = false;
@@ -19,6 +19,16 @@ let currentIndex = 0;
 
 // признак того, что идет сохранение в файл
 let isSaving = false;
+
+/**
+ * Форматирование текущего времени для логов
+ * @returns {string} Отформатированное время в формате [YYYY-MM-DD HH:MM:SS]
+ */
+function getLogTimestamp() {
+  const now = new Date();
+  const moscowTime = new Date(now.getTime() + (3 * 60 * 60 * 1000)); // UTC+3 для Москвы
+  return `[${moscowTime.toISOString().slice(0, 19).replace('T', ' ')}]`;
+}
 
 /**
  * Проверка, находится ли текущее время в торговых часах (МСК)
@@ -48,7 +58,7 @@ export async function runDump() {
   console.log('[i] Запуск модуля дампа данных...');
   
   try {
-    console.log('[i] Настройки дампа:');
+    console.log(`${getLogTimestamp()} [i] Настройки дампа:`);
     console.log(`  - API URL: ${CONFIG.BASE_URL}`);
     console.log(`  - WebSocket URL: ${CONFIG.WS_URL}`);
     console.log(`  - Биржа: ${CONFIG.EXCHANGE}`);
@@ -140,7 +150,7 @@ function saveDataToFile(datBuffer) {
       if (err) {
         console.error('[!] Ошибка при записи файла:', err);
       } else {
-        console.log(`[💾] Сохранено ${datBuffer.length} записей в ${fileName}, время сохранения: ${new Date().getTime() - startSavingTime}ms`);
+        console.log(`${getLogTimestamp()} [💾] Сохранено ${datBuffer.length} записей в ${fileName}, время сохранения: ${new Date().getTime() - startSavingTime}ms`);
       }
       datBuffer.length = 0;
 
@@ -175,15 +185,13 @@ function handleWebSocketMessage(message) {
     const rec = JSON.stringify(message, null, ''); // Убираем отступы и переносы строк
 
     if (dataBufferCurrent.length % 100 === 0) {
-      console.log(`[i] Буфер содержит ${dataBufferCurrent.length} сообщений`);
+      console.log(`${getLogTimestamp()} [i] Буфер содержит ${dataBufferCurrent.length} сообщений`);
     }
 
     // проверяем размер буфера
-    if (dataBufferCurrent.length > MAX_BUFFER_SIZE) {
-      console.log(`[i] Буфер переполнен, сохраняем в файл`);
+    if (dataBufferCurrent.length >= MAX_BUFFER_SIZE) {
+      console.log(`${getLogTimestamp()} [i] Буфер переполнен, сохраняем в файл`);
       let bufferToSave = swapDataBuffers();
-
-      console.log(`dataBufferCurrent length = ${dataBufferCurrent.length}`);
 
       // добавляем в буфер
       dataBufferCurrent.push(rec);
