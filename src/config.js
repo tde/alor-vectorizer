@@ -71,6 +71,9 @@ export const CONFIG = Object.freeze({
   // частота обновления стакана
   FREQUENCY: Number(process.env.FREQUENCY || 0),
 
+  // Часовой пояс для торгов
+  TIMEZONE: process.env.TIMEZONE || 'Europe/Moscow',
+
   // Расписание торгов (время в минутах от начала дня)
   TRADING_SESSIONS: [
     { start: 9 * 60, end: 14 * 60 },      // 9:00 - 14:00

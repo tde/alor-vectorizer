@@ -48,6 +48,7 @@ export class AlorWS {
 
   async subscribeAll() {
     const token = await getAccessToken();
+
     // OrderBook
     this.send({
       opcode: 'OrderBookGetAndSubscribe',
@@ -59,6 +60,7 @@ export class AlorWS {
       guid: `ob-${uuidv4()}`,
       token,
     });
+
     // Trades (поток сделок)
     this.send({
       opcode: 'AllTradesGetAndSubscribe',

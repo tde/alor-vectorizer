@@ -1,6 +1,7 @@
 // auth.js
 import axios from 'axios';
 import { CONFIG } from './config.js';
+import { DateTime } from 'luxon';
 
 let accessToken = null;
 let expiresAt = 0;
@@ -15,14 +16,14 @@ export async function refreshAccessToken() {
   
   accessToken = data.AccessToken;
   const ttl = data.ExpiresIn || 300; // seconds
-  expiresAt = Date.now() + Math.max(30, ttl - 30) * 1000; // refresh ~30s before expiry
+  expiresAt = DateTime.now().plus({ seconds: Math.max(30, ttl - 30) }).toMillis(); // refresh ~30s before expiry
   
   console.log(`✅ JWT refreshed, ttl≈${ttl}s`);
   return accessToken;
 }
 
 export async function getAccessToken() {
-  if (!accessToken || Date.now() >= expiresAt) {
+  if (!accessToken || DateTime.now().toMillis() >= expiresAt) {
     await refreshAccessToken();
   }
   return accessToken;

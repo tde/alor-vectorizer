@@ -4,6 +4,7 @@ import { CONFIG } from "./config.js";
 import fs from 'fs';
 import path from 'path';
 import writeFileAtomic from 'write-file-atomic';
+import { DateTime } from 'luxon';
 
 // Кол-во строк в буфере при превышении которого сохраняем в файл
 const MAX_BUFFER_SIZE = 500;
@@ -25,9 +26,8 @@ let isSaving = false;
  * @returns {string} Отформатированное время в формате [YYYY-MM-DD HH:MM:SS]
  */
 function getLogTimestamp() {
-  const now = new Date();
-  const moscowTime = new Date(now.getTime() + (3 * 60 * 60 * 1000)); // UTC+3 для Москвы
-  return `[${moscowTime.toISOString().slice(0, 19).replace('T', ' ')}]`;
+  const moscowTime = DateTime.now().setZone(CONFIG.TIMEZONE);
+  return `[${moscowTime.toFormat('yyyy-MM-dd HH:mm:ss')}]`;
 }
 
 /**
@@ -35,11 +35,9 @@ function getLogTimestamp() {
  * @returns {boolean} true если сейчас торговые часы
  */
 function isTradingTime() {
-  // Получаем текущее время в Москве (UTC+3)
-  const now = new Date();
-  const moscowTime = new Date(now.getTime() + (3 * 60 * 60 * 1000)); // UTC+3 для Москвы
-  
-  const currentTimeMinutes = moscowTime.getHours() * 60 + moscowTime.getMinutes();
+  // Получаем текущее время в торговом часовом поясе
+  const tradingTime = DateTime.now().setZone(CONFIG.TIMEZONE);
+  const currentTimeMinutes = tradingTime.hour * 60 + tradingTime.minute;
   
   // Проверяем каждую торговую сессию
   for (const session of CONFIG.TRADING_SESSIONS) {
@@ -72,10 +70,9 @@ export async function runDump() {
       console.log(`    Сессия ${index + 1}: ${startTime} - ${endTime}`);
     });
     
-    // Показываем текущее московское время
-    const now = new Date();
-    const moscowTime = new Date(now.getTime() + (3 * 60 * 60 * 1000));
-    console.log(`  - Текущее время (МСК): ${moscowTime.toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}`);
+    // Показываем текущее время в торговом часовом поясе
+    const tradingTime = DateTime.now().setZone(CONFIG.TIMEZONE);
+    console.log(`  - Текущее время (${CONFIG.TIMEZONE}): ${tradingTime.toLocaleString(DateTime.DATETIME_FULL)}`);
     console.log(`  - Торговые часы активны: ${isTradingTime() ? 'ДА' : 'НЕТ'}`);
     
     // Создаем папку для данных, если её нет
@@ -126,10 +123,10 @@ function saveDataToFile(datBuffer) {
 
   try {
     isSaving = true;
-    const timestamp = new Date();
-    const startSavingTime = timestamp.getTime();
+    const timestamp = DateTime.now();
+    const startSavingTime = timestamp.toMillis();
 
-    const dateStr = timestamp.toISOString().split('T')[0]; // YYYY-MM-DD
+    const dateStr = timestamp.toISODate(); // YYYY-MM-DD
     const fileName = `${CONFIG.SYMBOL}_data_${dateStr}.json`;
     const filePath = path.join(CONFIG.DATA_DIR, fileName);
 
@@ -141,21 +138,21 @@ function saveDataToFile(datBuffer) {
       dataToWrite += item + '\n';
     });
     
-    // Атомарно дописываем в конец файла с callback
-    writeFileAtomic(filePath, dataToWrite, {
-      encoding: 'utf8',
-      mode: 0o644,
-      flag: 'a' // Флаг для дописывания в конец
-    }, (err) => {
+    fs.appendFile(filePath, dataToWrite, (err) => {
       if (err) {
         console.error('[!] Ошибка при записи файла:', err);
       } else {
-        console.log(`${getLogTimestamp()} [💾] Сохранено ${datBuffer.length} записей в ${fileName}, время сохранения: ${new Date().getTime() - startSavingTime}ms`);
+        console.log(`${getLogTimestamp()} [💾] Сохранено ${datBuffer.length} записей в ${fileName}, время сохранения: ${DateTime.now().toMillis() - startSavingTime}ms`);
       }
-      datBuffer.length = 0;
 
+      datBuffer.length = 0;
       isSaving = false;
+
+      //вывод лога текщего размера файла
+      const fileSize = fs.statSync(filePath).size;
+      console.log(`${getLogTimestamp()} [💾] Текущий размер файла: ${Math.round(fileSize/1000)} kB`);
     });
+
     
   } catch (error) {
     console.error('[!] Ошибка при сохранении данных:', error);
