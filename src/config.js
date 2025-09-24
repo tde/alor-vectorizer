@@ -52,6 +52,7 @@ export const CONFIG = Object.freeze({
   // Trading instrument
   EXCHANGE: process.env.EXCHANGE,
   SYMBOL: process.env.SYMBOL,
+  TICK_SIZE: Number(process.env.TICK_SIZE || 0.01),
 
   // API request settings
   PAGE_LIMIT: toInt(process.env.PAGE_LIMIT, 5000),
@@ -80,6 +81,40 @@ export const CONFIG = Object.freeze({
     { start: 14 * 60 + 5, end: 18 * 60 + 50 },  // 14:05 - 18:50
     { start: 19 * 60 + 5, end: 23 * 60 + 50 }   // 19:05 - 23:50
   ],
+
+  // Параметры агрегации сделок 
+  // на таких разницах тиках агрегируются сделки
+  TRADE_PRICE_ZONES: [1, 2, 4, 8, 16, Infinity],
+
+  // интервалы по объему сделок
+  TRADE_SIZE_BINS: [1, 2, 4, 12, 30, 60, 120, 300],
+
+  // Тайм-константы (сек)
+  TAU_EWMA_BESTVOL: 30, // масштаб для объёмов
+  TAU_SWN_FAST: 15,     // SWN для быстрых фич (dVol/сек, trades/сек, micro speed)
+  EPS: 1e-8,
+
+  // Клипы
+  CLIP_PRICE_OFFSET: 26,
+  CLIP_SPREAD_TICKS: 10,
+  CLIP_DVOL_RATE: 60,
+  CLIP_Z_SCORE: 5,
+  CLIP_TRADE_COUNT_PER_SEC: 60,
+  CLIP_TRADE_VOL_PER_SEC: 360,
+
+  // 1) Не включать "сырое" Δt как фичу (оставляем только logΔt)
+  USE_RAW_DT: false,
+
+  // Кап для Δt перед log (срезаем хвосты > p99)
+  DT_MAX_SEC: 5.0,
+
+  // 2) Использовать не абсолютный VWAP, а смещение в тиках: (vwap - mid)/tick
+  USE_VWAP_OFFSET: true,
+  
+  // 3) Чтобы избежать константных колонок по хвостовым бинам — можно ограничить число бинов
+  SIZE_BINS_KEEP: 6, // берем первые 6 бинов; ставь null, чтобы оставить все
+
+  EWMA_ALPHA_BESTVOL: 0.025,
 });
 
 // Get volume binning settings for specific symbol

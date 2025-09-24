@@ -2,8 +2,8 @@
 import fs from "fs";
 import path from "path";
 import { CONFIG } from "./config.js";
-import { formatTimestampWithTimezone } from "./utils.js";
-
+import { createPipeline } from "./agragate/pipeline.js";
+import { FeatureSink } from "./agragate/FeatureSink.js";
 
 /**
  * Основная функция модуля prepare
@@ -18,23 +18,11 @@ export async function runPrepare(args) {
     console.log(`[i] Дата: ${date}`);
     console.log(`[i] Символ: ${symbol}`);
     
-    // Формируем имя файла
-    const fileName = buildFileName(symbol, date);
-    console.log(`[i] Имя файла: ${fileName}`);
-    
-    // Путь к файлу в папке data
-    const filePath = path.join(CONFIG.DATA_DIR, fileName);
-    console.log(`[i] Путь к файлу: ${filePath}`);
-    
     // Читаем и парсим файл
     console.log('[i] Чтение и парсинг файла...');
-    const parsedData = readDumpFile(filePath);
+    prepareFeaturesFromDumpFile(symbol, date);
     
-    console.log(`[i] Успешно обработано ${parsedData.length} записей`);
-    
-   
-    console.log('[i] Модуль подготовки данных завершен успешно');
-    
+    console.log(`[i] Успешно обработано`);
   } catch (error) {
     console.error('[!] Ошибка в модуле подготовки данных:', error.message);
     throw error;
@@ -56,7 +44,14 @@ export function buildFileName(symbol, date) {
    * @param {string} filePath - путь к файлу
    * @returns {Array} массив объектов из JSON строк
    */
-function readDumpFile(filePath) {
+function prepareFeaturesFromDumpFile(symbol, date) {
+    // Формируем имя файла
+    const fileName = buildFileName(symbol, date);
+
+    // Путь к файлу в папке data
+    const filePath = path.join(CONFIG.DATA_DIR, fileName);
+    console.log(`[i] Путь к файлу: ${filePath}`);
+
     if (!fs.existsSync(filePath)) {
       throw new Error(`Файл не найден: ${filePath}`);
     }
@@ -64,29 +59,24 @@ function readDumpFile(filePath) {
     const fileContent = fs.readFileSync(filePath, 'utf8');
     const lines = fileContent.trim().split('\n');
     
-    const parsedData = [];
     let lineNumber = 0;
+
+    const pipeline = createPipeline();
+
+    //сохранялка фич
+    const featSink = new FeatureSink();
     
     for (const line of lines) {
       lineNumber++;
       if (line.trim() === '') continue;
-      
-      try {
-        const parsed = JSON.parse(line);
-        //parsedData.push(parsed);
-        if (parsed.data?.bids) {
-           console.log(formatTimestampWithTimezone(parsed.data.ms_timestamp));
-        }
-        if (parsed.data?.asks) {
-          parsedData.push(parsed);
-        }
-      } catch (error) {
-        console.warn(`[!] Ошибка парсинга JSON на строке ${lineNumber}: ${error.message}`);
-        console.warn(`[!] Строка: ${line.substring(0, 100)}...`);
+
+      const feat = pipeline.feedLine(line);
+      if (feat && feat.vector) {
+        featSink.add(feat.vector);
       }
     }
-    
-    return parsedData;
+
+    featSink.saveCSV(path.join(CONFIG.DATA_DIR, `${symbol}_${date}_features.csv`));
 }
 
 /**

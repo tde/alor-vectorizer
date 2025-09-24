@@ -146,3 +146,17 @@ export function isWeekend(dateObj) {
   const w = dateObj.weekday;
   return w === 7 || w === 6; // Sunday=7, Saturday=6 в Luxon
 }
+
+export const msToSec = (ms) => ms / 1000;
+
+/**
+ * Математические функции
+ */
+export const safeDiv = (num, den, def = 0) => (den !== 0 ? num / den : def);
+
+export const log1p = (x) => Math.log(1 + Math.max(x, 0));
+
+export const clip = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
+
+export const ewmaUpdate = (prev, x, alpha) =>
+  prev == null ? x : alpha * x + (1 - alpha) * prev;
