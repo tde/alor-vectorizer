@@ -26,7 +26,7 @@ export function createPipeline() {
             if (!prevObState) {
                 prevObState = obState;
                 trades.clear();
-                return;
+                return [];
             }
       
             // агрегируем сделки, случившиеся между предыдущим и текущим 
@@ -41,11 +41,12 @@ export function createPipeline() {
             prevObState = obState;
 
             //вернуть вектор фич
-            return feat;
+            return {data: feat, ms: obState.ms, mid: obState.mid};
         }
         //Это сделка
         else if (msg?.data?.price && (msg?.data?.qty || msg?.data?.volume)) {
             trades.push(msg);
+            return [];
         }
     }
 

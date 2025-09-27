@@ -4,6 +4,7 @@ import path from "path";
 import { CONFIG } from "./config.js";
 import { createPipeline } from "./agragate/pipeline.js";
 import { FeatureSink } from "./agragate/FeatureSink.js";
+import { PriceSink } from "./agragate/PriceSink.js";
 
 /**
  * Основная функция модуля prepare
@@ -65,19 +66,25 @@ function prepareFeaturesFromDumpFile(symbol, date) {
 
     //сохранялка фич
     const featSink = new FeatureSink();
+
+    //метки цен
+    const priceSink = new PriceSink();
     
     for (const line of lines) {
       lineNumber++;
       if (line.trim() === '') continue;
 
-      const feat = pipeline.feedLine(line);
-      if (feat && feat.vector) {
-        featSink.add(feat.vector);
+      const result = pipeline.feedLine(line);
+      if (result && result.data) {
+        featSink.add(result.data.vector);
+        priceSink.add(result.ms, result.mid);
       }
     }
 
-    featSink.saveCSV(path.join(CONFIG.DATA_DIR, `${symbol}_${date}_features.csv`));
-}
+    //featSink.saveCSV(path.join(CONFIG.DATA_DIR, `${symbol}_${date}_features.csv`));
+    featSink.saveNPY(path.join(CONFIG.DATA_DIR, `${symbol}_${date}_features.npy`));
+    priceSink.saveCSV(path.join(CONFIG.DATA_DIR, `${symbol}_${date}_prices.csv`));
+} 
 
 /**
  * Парсит аргументы командной строки для параметра --prepare

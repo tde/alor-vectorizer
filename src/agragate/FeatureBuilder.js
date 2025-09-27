@@ -59,14 +59,6 @@ export function buildFeatures(ob, aggs, normalizer) {
         "trVol"
     );
 
-
-    const v2 = [
-        ...scalars,
-        ...priceOffsetsBid, ...priceOffsetsAsk,
-        ...logVolBid, ...logVolAsk,
-        ...dvolTop3,
-    ];
-
     const vector = [
         ...scalars,
         ...priceOffsetsBid, ...priceOffsetsAsk,
