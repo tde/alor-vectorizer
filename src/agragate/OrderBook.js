@@ -7,6 +7,9 @@ export class OrderBook {
     this.prevMs = null;
     this.prevMicro = null;
     this.ewmaBestVol = null; // EWMA масштаба объёмов
+    this.prevSpreadTicks = null;
+    this.prevCogBid = null;
+    this.prevCogAsk = null;
   }
 
   _micro(bid, ask, bidV, askV) {
@@ -59,26 +62,66 @@ export class OrderBook {
     const ΔtSec = this.prevMs ? (ms - this.prevMs) / 1000 : 0;
     const microSpeed = (this.prevMicro != null && ΔtSec > 0) ? (micro - this.prevMicro) / ΔtSec : 0;
 
-    const dvolSide = (arr) => {
-      if (!(this.prevMs && ΔtSec > 0)) return [0,0,0];
-      return arr.slice(0, 3).map((x) => {
-        if (x.prevV == null) return 0;
-        const rate = (x.v - x.prevV) / ΔtSec;
-        return clip(rate, -CONFIG.CLIP_DVOL_RATE, CONFIG.CLIP_DVOL_RATE);
-      });
+    const dvolLevels = Math.max(1, CONFIG.DVOL_LEVELS || 3);
+    const buildDvol = (arr) => {
+      const out = new Array(Math.min(dvolLevels, arr.length)).fill(0);
+      if (!(this.prevMs && ΔtSec > 0)) return out;
+      for (let i = 0; i < out.length; i++) {
+        const level = arr[i];
+        if (!level) {
+          out[i] = 0;
+          continue;
+        }
+        if (level.prevV == null) {
+          out[i] = 0;
+          continue;
+        }
+        const rate = (level.v - level.prevV) / ΔtSec;
+        out[i] = clip(rate, -CONFIG.CLIP_DVOL_RATE, CONFIG.CLIP_DVOL_RATE);
+      }
+      return out;
     };
+
+    const cog = (arr) => {
+      let sumVol = 0;
+      let weighted = 0;
+      for (let i = 0; i < arr.length; i++) {
+        const vol = arr[i]?.v ?? 0;
+        sumVol += vol;
+        weighted += vol * (i + 1);
+      }
+      if (sumVol <= 0) return 0;
+      return weighted / sumVol;
+    };
+
+    const cogBid = cog(sideBid);
+    const cogAsk = cog(sideAsk);
+    const cogBidSpeed = (this.prevCogBid != null && ΔtSec > 0) ? (cogBid - this.prevCogBid) / ΔtSec : 0;
+    const cogAskSpeed = (this.prevCogAsk != null && ΔtSec > 0) ? (cogAsk - this.prevCogAsk) / ΔtSec : 0;
+
+    const spreadPerSec = (this.prevSpreadTicks != null && ΔtSec > 0)
+      ? (spreadTicks - this.prevSpreadTicks) / ΔtSec
+      : 0;
 
     const out = {
       ms, mid, spreadTicks,
       ΔtSec, micro, microSpeed,
       bid: sideBid, ask: sideAsk,
-      dvolBidTop3: dvolSide(sideBid),
-      dvolAskTop3: dvolSide(sideAsk),
+      dvolBidTop: buildDvol(sideBid),
+      dvolAskTop: buildDvol(sideAsk),
+      spreadPerSec,
+      cogBid,
+      cogAsk,
+      cogBidSpeed,
+      cogAskSpeed,
     };
 
     this.prevMaps = { bid: mapBid, ask: mapAsk };
     this.prevMs = ms;
     this.prevMicro = micro;
+    this.prevSpreadTicks = spreadTicks;
+    this.prevCogBid = cogBid;
+    this.prevCogAsk = cogAsk;
     return out;
   }
 

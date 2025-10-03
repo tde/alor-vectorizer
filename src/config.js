@@ -115,6 +115,14 @@ export const CONFIG = Object.freeze({
   SIZE_BINS_KEEP: 6, // берем первые 6 бинов; ставь null, чтобы оставить все
 
   EWMA_ALPHA_BESTVOL: 0.025,
+
+  // Расширенные параметры построения фичей
+  DVOL_LEVELS: Number(process.env.DVOL_LEVELS || 5),
+  GAP_LOOKUP_LEVELS: Number(process.env.GAP_LOOKUP_LEVELS || 10),
+  GAP_VOLUME_THRESHOLD: Number(process.env.GAP_VOLUME_THRESHOLD || 0),
+  GAP_LARGE_VOLUME_THRESHOLD: Number(process.env.GAP_LARGE_VOLUME_THRESHOLD || 0),
+  TRADE_SIZE_HISTORY_MAX: toInt(process.env.TRADE_SIZE_HISTORY_MAX, 5000),
+  TRADE_QUANTILE_BINS: toInt(process.env.TRADE_QUANTILE_BINS, 5),
 });
 
 // Get volume binning settings for specific symbol

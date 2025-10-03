@@ -4,6 +4,11 @@ import { CONFIG } from "../config.js";
 export class TradeAggregator {
     constructor() {
         this.trades = []; // хранит последние N секунд, можно чистить по времени
+        this.sizeHistory = [];
+        this.lastTradePrice = null;
+        this.lastTradeSide = null;
+        this.sizeHistoryLimit = CONFIG.TRADE_SIZE_HISTORY_MAX || 5000;
+        this.prevTradePrice = null;
     }
   
     push(trade) {
@@ -11,12 +16,16 @@ export class TradeAggregator {
           tsMs: trade.data?.timestamp ?? Date.parse(trade.data?.time),
           price: trade.data?.price,
           qty: trade.data?.qty ?? trade.data?.volume ?? 0,
-          side: trade.data?.side?.toLowerCase() || null, // "buy"/"sell" если есть
+          side: this._normalizeSide(trade.data?.side),
         };
 
         if (!Number.isFinite(t.tsMs) || !t.price || !t.qty) return;
-        
+
+        t.side = this._inferSide(t.side, t.price);
+        this._registerTradeMeta(t.price, t.side);
+
         this.trades.push(t);
+        this._updateSizeHistory(t.qty);
     }
 
     clear() {
@@ -64,6 +73,24 @@ export class TradeAggregator {
             this.prevTradePrice = tr.price;
         }
 
+        const quantileBins = this._initQuantileBins();
+        if (quantileBins) {
+            const { counts, volumes, thresholds } = quantileBins;
+            for (const tr of this.trades) {
+              if (tr.tsMs <= prevMs || tr.tsMs > currMs) continue;
+              const binIdx = this._quantileBinIndex(tr.qty, thresholds);
+              counts[binIdx] += 1;
+              volumes[binIdx] += tr.qty;
+            }
+            // превратим в скорость, как и остальные метрики
+            for (let i = 0; i < counts.length; i++) {
+              counts[i] = counts[i] / Δt;
+              volumes[i] = volumes[i] / Δt;
+            }
+            quantileBins.counts = counts;
+            quantileBins.volumes = volumes;
+        }
+
         const zones = perZone.map((o) => {
             const bid_v = o.bid.v, ask_v = o.ask.v;
             const bid_vwap_abs = bid_v > 0 ? o.bid.vnum / bid_v : 0;
@@ -87,6 +114,11 @@ export class TradeAggregator {
             sizeBinsCountPerSec: sizeCnt.map((x) => x / Δt),
             sizeBinsVolPerSec:   sizeVol.map((x) => x / Δt),
         };
+
+        if (quantileBins) {
+            res.quantileBinsCount = quantileBins.counts;
+            res.quantileBinsVol = quantileBins.volumes;
+        }
         
         // (опционально) урезаем хвостовые бины, чтобы не плодить константы
         if (Number.isFinite(CONFIG.SIZE_BINS_KEEP)) {
@@ -95,5 +127,68 @@ export class TradeAggregator {
         }
 
         return res;
+    }
+
+    _normalizeSide(side) {
+        if (!side) return null;
+        const s = String(side).toLowerCase();
+        if (s === "buy" || s === "sell") return s;
+        return null;
+    }
+
+    _inferSide(side, price) {
+        if (side === "buy" || side === "sell") return side;
+        if (!Number.isFinite(this.lastTradePrice)) return "unknown";
+        if (price > this.lastTradePrice) return "buy";
+        if (price < this.lastTradePrice) return "sell";
+        return this.lastTradeSide || "unknown";
+    }
+
+    _registerTradeMeta(price, side) {
+        if (Number.isFinite(price)) {
+            this.lastTradePrice = price;
+        }
+        if (side === "buy" || side === "sell") {
+            this.lastTradeSide = side;
+        }
+    }
+
+    _updateSizeHistory(qty) {
+        if (!Number.isFinite(qty) || qty <= 0) return;
+        this.sizeHistory.push(qty);
+        if (this.sizeHistory.length > this.sizeHistoryLimit) {
+            this.sizeHistory.splice(0, this.sizeHistory.length - this.sizeHistoryLimit);
+        }
+    }
+
+    _initQuantileBins() {
+        const bins = CONFIG.TRADE_QUANTILE_BINS || 0;
+        if (bins <= 0) return null;
+        if (this.sizeHistory.length < bins) return null;
+        const thresholds = this._quantileThresholds(bins - 1);
+        return {
+            counts: new Array(bins).fill(0),
+            volumes: new Array(bins).fill(0),
+            thresholds,
+        };
+    }
+
+    _quantileThresholds(cuts) {
+        if (cuts <= 0) return [];
+        const sorted = [...this.sizeHistory].sort((a, b) => a - b);
+        const thresholds = [];
+        for (let i = 1; i <= cuts; i++) {
+            const pos = (i * (sorted.length + 1)) / (cuts + 1);
+            const idx = Math.min(sorted.length - 1, Math.max(0, Math.floor(pos) - 1));
+            thresholds.push(sorted[idx]);
+        }
+        return thresholds;
+    }
+
+    _quantileBinIndex(qty, thresholds) {
+        for (let i = 0; i < thresholds.length; i++) {
+            if (qty <= thresholds[i]) return i;
+        }
+        return thresholds.length;
     }
 }

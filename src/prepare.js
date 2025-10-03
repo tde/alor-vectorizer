@@ -1,6 +1,7 @@
 // prepare.js - Модуль для подготовки данных из дамп файлов
 import fs from "fs";
 import path from "path";
+import readline from "node:readline";
 import { CONFIG } from "./config.js";
 import { createPipeline } from "./agragate/pipeline.js";
 import { FeatureSink } from "./agragate/FeatureSink.js";
@@ -21,7 +22,16 @@ export async function runPrepare(args) {
     
     // Читаем и парсим файл
     console.log('[i] Чтение и парсинг файла...');
-    prepareFeaturesFromDumpFile(symbol, date);
+    const summary = await prepareFeaturesFromDumpFile(symbol, date);
+
+    if (summary) {
+      const [rows, cols] = summary.featureShape;
+      console.log(`[i] Получено срезов стакана: ${rows}`);
+      console.log(`[i] Размерность признакового вектора: ${cols}`);
+      if (summary.featureNames.length) {
+        console.log('[i] Файл с перечнем признаков записан.');
+      }
+    }
     
     console.log(`[i] Успешно обработано`);
   } catch (error) {
@@ -45,7 +55,7 @@ export function buildFileName(symbol, date) {
    * @param {string} filePath - путь к файлу
    * @returns {Array} массив объектов из JSON строк
    */
-function prepareFeaturesFromDumpFile(symbol, date) {
+async function prepareFeaturesFromDumpFile(symbol, date) {
     // Формируем имя файла
     const fileName = buildFileName(symbol, date);
 
@@ -57,33 +67,57 @@ function prepareFeaturesFromDumpFile(symbol, date) {
       throw new Error(`Файл не найден: ${filePath}`);
     }
     
-    const fileContent = fs.readFileSync(filePath, 'utf8');
-    const lines = fileContent.trim().split('\n');
-    
+    const pipeline = createPipeline();
+    const featSink = new FeatureSink();
+    const priceSink = new PriceSink();
+
+    let featureNames = [];
     let lineNumber = 0;
 
-    const pipeline = createPipeline();
+    const input = fs.createReadStream(filePath, "utf8");
+    const rl = readline.createInterface({ input, crlfDelay: Infinity });
 
-    //сохранялка фич
-    const featSink = new FeatureSink();
+    try {
+      for await (const rawLine of rl) {
+        lineNumber++;
+        const line = rawLine.trim();
+        if (!line) continue;
 
-    //метки цен
-    const priceSink = new PriceSink();
-    
-    for (const line of lines) {
-      lineNumber++;
-      if (line.trim() === '') continue;
+        let result;
+        try {
+          result = pipeline.feedLine(line);
+        } catch (error) {
+          throw new Error(`Ошибка при обработке строки ${lineNumber}: ${error.message}`);
+        }
 
-      const result = pipeline.feedLine(line);
-      if (result && result.data) {
-        featSink.add(result.data.vector);
-        priceSink.add(result.ms, result.mid);
+        if (result && result.data) {
+          featSink.add(result.data.vector);
+          priceSink.add(result.ms, result.mid);
+          if (!featureNames.length && Array.isArray(result.data.featureNames)) {
+            featureNames = [...result.data.featureNames];
+          }
+        }
       }
+    } finally {
+      rl.close();
+      input.close?.();
     }
 
-    //featSink.saveCSV(path.join(CONFIG.DATA_DIR, `${symbol}_${date}_features.csv`));
-    featSink.saveNPY(path.join(CONFIG.DATA_DIR, `${symbol}_${date}_features.npy`));
-    priceSink.saveCSV(path.join(CONFIG.DATA_DIR, `${symbol}_${date}_prices.csv`));
+    const featuresPath = path.join(CONFIG.DATA_DIR, `${symbol}_${date}_features.npy`);
+    const pricesPath = path.join(CONFIG.DATA_DIR, `${symbol}_${date}_prices.csv`);
+    const featureListPath = path.join(CONFIG.DATA_DIR, `${symbol}_${date}_feature_names.txt`);
+
+    featSink.saveNPY(featuresPath);
+    priceSink.saveCSV(pricesPath);
+
+    if (featureNames.length) {
+      fs.writeFileSync(featureListPath, featureNames.join("\n"), "utf8");
+    }
+
+    return {
+      featureNames,
+      featureShape: featSink.shape(),
+    };
 } 
 
 /**
