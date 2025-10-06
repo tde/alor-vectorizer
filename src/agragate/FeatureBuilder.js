@@ -33,7 +33,7 @@ export function buildFeatures(ob, aggs, normalizer) {
         cogAskSpeed = 0,
     } = ob;
 
-    const collector = new FeatureCollector();
+    const collector = new FeatureCollector(CONFIG.ENABLE_FEATURE_NAMES);
 
     const bookBid = Array.isArray(bid) ? bid : [];
     const bookAsk = Array.isArray(ask) ? ask : [];

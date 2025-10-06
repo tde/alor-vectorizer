@@ -14,6 +14,14 @@ const toInt = (v, d) => {
   return Number.isFinite(n) ? n : d;
 };
 
+const toBool = (value, defaultValue) => {
+  if (value === undefined) return defaultValue;
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "y", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "n", "off"].includes(normalized)) return false;
+  return defaultValue;
+};
+
 // === REST API endpoints ===
 // /md/v2/Securities/:exchange/:symbol/alltrades/history
 export function tradesHistoryPath({ baseUrl, exchange, symbol }) {
@@ -123,6 +131,8 @@ export const CONFIG = Object.freeze({
   GAP_LARGE_VOLUME_THRESHOLD: Number(process.env.GAP_LARGE_VOLUME_THRESHOLD || 0),
   TRADE_SIZE_HISTORY_MAX: toInt(process.env.TRADE_SIZE_HISTORY_MAX, 5000),
   TRADE_QUANTILE_BINS: toInt(process.env.TRADE_QUANTILE_BINS, 5),
+  // выключить сохранение имен колонок фичей (ускоряет и уменьшает память)
+  ENABLE_FEATURE_NAMES: toBool(process.env.ENABLE_FEATURE_NAMES, true),
 });
 
 // Get volume binning settings for specific symbol
