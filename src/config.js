@@ -52,7 +52,7 @@ export const CONFIG = Object.freeze({
   // Trading instrument
   EXCHANGE: process.env.EXCHANGE,
   SYMBOL: process.env.SYMBOL,
-  TICK_SIZE: Number(process.env.TICK_SIZE || 0.01),
+  TICK_SIZE: Number(process.env.TICK_SIZE || 1),
 
   // API request settings
   PAGE_LIMIT: toInt(process.env.PAGE_LIMIT, 5000),
@@ -95,12 +95,12 @@ export const CONFIG = Object.freeze({
   EPS: 1e-8,
 
   // Клипы
-  CLIP_PRICE_OFFSET: 26,
-  CLIP_SPREAD_TICKS: 10,
+  CLIP_PRICE_OFFSET: 70,
+  CLIP_SPREAD_TICKS: 15,
   CLIP_DVOL_RATE: 60,
   CLIP_Z_SCORE: 5,
-  CLIP_TRADE_COUNT_PER_SEC: 60,
-  CLIP_TRADE_VOL_PER_SEC: 360,
+  CLIP_TRADE_COUNT_PER_SEC: 80,
+  CLIP_TRADE_VOL_PER_SEC: 520,
 
   // 1) Не включать "сырое" Δt как фичу (оставляем только logΔt)
   USE_RAW_DT: false,

@@ -12,32 +12,32 @@ import { PriceSink } from "./agragate/PriceSink.js";
  * @param {string[]} args - аргументы командной строки
  */
 export async function runPrepare(args) {
-  try {
-    console.log('[i] Запуск модуля подготовки данных...');
-    
-    // Парсим аргументы
-    const { date, symbol } = parsePrepareArgs(args);
-    console.log(`[i] Дата: ${date}`);
-    console.log(`[i] Символ: ${symbol}`);
-    
-    // Читаем и парсим файл
-    console.log('[i] Чтение и парсинг файла...');
-    const summary = await prepareFeaturesFromDumpFile(symbol, date);
+    try {
+        console.log('[i] Запуск модуля подготовки данных...');
 
-    if (summary) {
-      const [rows, cols] = summary.featureShape;
-      console.log(`[i] Получено срезов стакана: ${rows}`);
-      console.log(`[i] Размерность признакового вектора: ${cols}`);
-      if (summary.featureNames.length) {
-        console.log('[i] Файл с перечнем признаков записан.');
-      }
+        // Парсим аргументы
+        const { date, symbol } = parsePrepareArgs(args);
+        console.log(`[i] Дата: ${date}`);
+        console.log(`[i] Символ: ${symbol}`);
+
+        // Читаем и парсим файл
+        console.log('[i] Чтение и парсинг файла...');
+        const summary = await prepareFeaturesFromDumpFile(symbol, date);
+
+        if (summary) {
+            const [rows, cols] = summary.featureShape;
+            console.log(`[i] Получено срезов стакана: ${rows}`);
+            console.log(`[i] Размерность признакового вектора: ${cols}`);
+            if (summary.featureNames.length) {
+                console.log('[i] Файл с перечнем признаков записан.');
+            }
+        }
+
+        console.log(`[i] Успешно обработано`);
+    } catch (error) {
+        console.error('[!] Ошибка в модуле подготовки данных:', error.message);
+        throw error;
     }
-    
-    console.log(`[i] Успешно обработано`);
-  } catch (error) {
-    console.error('[!] Ошибка в модуле подготовки данных:', error.message);
-    throw error;
-  }
 }
 
 /**
@@ -49,12 +49,12 @@ export async function runPrepare(args) {
 export function buildFileName(symbol, date) {
     return `${symbol}_data_${date}.json`;
 }
-  
-  /**
-   * Читает и парсит файл дампа построчно
-   * @param {string} filePath - путь к файлу
-   * @returns {Array} массив объектов из JSON строк
-   */
+
+/**
+ * Читает и парсит файл дампа построчно
+ * @param {string} filePath - путь к файлу
+ * @returns {Array} массив объектов из JSON строк
+ */
 async function prepareFeaturesFromDumpFile(symbol, date) {
     // Формируем имя файла
     const fileName = buildFileName(symbol, date);
@@ -64,9 +64,9 @@ async function prepareFeaturesFromDumpFile(symbol, date) {
     console.log(`[i] Путь к файлу: ${filePath}`);
 
     if (!fs.existsSync(filePath)) {
-      throw new Error(`Файл не найден: ${filePath}`);
+        throw new Error(`Файл не найден: ${filePath}`);
     }
-    
+
     const pipeline = createPipeline();
     const featSink = new FeatureSink();
     const priceSink = new PriceSink();
@@ -78,29 +78,38 @@ async function prepareFeaturesFromDumpFile(symbol, date) {
     const rl = readline.createInterface({ input, crlfDelay: Infinity });
 
     try {
-      for await (const rawLine of rl) {
-        lineNumber++;
-        const line = rawLine.trim();
-        if (!line) continue;
+        for await (const rawLine of rl) {
+            lineNumber++;
+            const line = rawLine.trim();
+            if (!line) continue;
 
-        let result;
-        try {
-          result = pipeline.feedLine(line);
-        } catch (error) {
-          throw new Error(`Ошибка при обработке строки ${lineNumber}: ${error.message}`);
-        }
+            let result;
+            try {
+                if (lineNumber % 10_000 == 0) {
+                    console.log(`Обработано: ${lineNumber} строк`)
+                }
+                result = pipeline.feedLine(line);
 
-        if (result && result.data) {
-          featSink.add(result.data.vector);
-          priceSink.add(result.ms, result.mid);
-          if (!featureNames.length && Array.isArray(result.data.featureNames)) {
-            featureNames = [...result.data.featureNames];
-          }
+                if (result && result.data) {
+                    featSink.add(result.data.vector);
+                    priceSink.add(result.ms, result.mid);
+                    if (!featureNames.length && Array.isArray(result.data.featureNames)) {
+                        featureNames = [...result.data.featureNames];
+                    }    
+                }
+            } catch (error) {
+                console.log(`строка: ${line}`);
+
+                result = pipeline.feedLine(line);
+                featSink.add(result.data.vector);
+
+
+                throw new Error(`Ошибка при обработке строки ${lineNumber}: ${error.message}`);   
+            }
         }
-      }
     } finally {
-      rl.close();
-      input.close?.();
+        rl.close();
+        input.close?.();
     }
 
     const featuresPath = path.join(CONFIG.DATA_DIR, `${symbol}_${date}_features.npy`);
@@ -111,14 +120,14 @@ async function prepareFeaturesFromDumpFile(symbol, date) {
     priceSink.saveCSV(pricesPath);
 
     if (featureNames.length) {
-      fs.writeFileSync(featureListPath, featureNames.join("\n"), "utf8");
+        fs.writeFileSync(featureListPath, featureNames.join("\n"), "utf8");
     }
 
     return {
-      featureNames,
-      featureShape: featSink.shape(),
+        featureNames,
+        featureShape: featSink.shape(),
     };
-} 
+}
 
 /**
  * Парсит аргументы командной строки для параметра --prepare
@@ -127,24 +136,24 @@ async function prepareFeaturesFromDumpFile(symbol, date) {
  */
 function parsePrepareArgs(args) {
     const dateIndex = args.indexOf('--date');
-    
+
     if (dateIndex === -1 || dateIndex === args.length - 1) {
-      throw new Error('Параметр --date обязателен и должен содержать дату в формате yyyy-mm-dd');
+        throw new Error('Параметр --date обязателен и должен содержать дату в формате yyyy-mm-dd');
     }
-    
+
     const date = args[dateIndex + 1];
-    
+
     // Проверяем формат даты yyyy-mm-dd
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
     if (!dateRegex.test(date)) {
-      throw new Error('Дата должна быть в формате yyyy-mm-dd');
+        throw new Error('Дата должна быть в формате yyyy-mm-dd');
     }
-    
+
     // Получаем символ только из конфига
     const symbol = CONFIG.SYMBOL;
     if (!symbol) {
-      throw new Error('Символ не найден в конфиге');
+        throw new Error('Символ не найден в конфиге');
     }
-    
+
     return { date, symbol };
-  }
+}

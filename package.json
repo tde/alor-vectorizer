@@ -6,7 +6,8 @@
   "scripts": {
     "start-stat": "node src/main.js --trades-stat",
     "start-dump": "node src/main.js --dump",
-    "start-vec": "node src/main.js --vectorizer"
+    "start-vec": "node src/main.js --vectorizer",
+    "prepare": "node src/main.js --prepare --date 2025-09-23"
   },
   "dependencies": {
     "axios": "^1.6.0",
